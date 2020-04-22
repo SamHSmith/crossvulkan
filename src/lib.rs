@@ -8,15 +8,18 @@ mod tests {
         use vulkano::buffer::{BufferUsage, CpuAccessibleBuffer};
         use vulkano::command_buffer::{AutoCommandBufferBuilder, DynamicState};
         use vulkano::device::{Device, DeviceExtensions};
-        use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, Subpass, RenderPassAbstract};
+        use vulkano::framebuffer::{Framebuffer, FramebufferAbstract, RenderPassAbstract, Subpass};
         use vulkano::image::SwapchainImage;
         use vulkano::instance::{Instance, PhysicalDevice};
-        use vulkano::pipeline::GraphicsPipeline;
         use vulkano::pipeline::viewport::Viewport;
-        use vulkano::swapchain::{AcquireError, PresentMode, SurfaceTransform, Swapchain, SwapchainCreationError, ColorSpace, FullscreenExclusive};
+        use vulkano::pipeline::GraphicsPipeline;
         use vulkano::swapchain;
-        use vulkano::sync::{GpuFuture, FlushError};
+        use vulkano::swapchain::{
+            AcquireError, ColorSpace, FullscreenExclusive, PresentMode, SurfaceTransform,
+            Swapchain, SwapchainCreationError,
+        };
         use vulkano::sync;
+        use vulkano::sync::{FlushError, GpuFuture};
 
         use std::sync::Arc;
 
@@ -27,31 +30,35 @@ mod tests {
         glfw.window_hint(WindowHint::ClientApi(ClientApiHint::NoApi));
         let (mut window, events) = glfw
             .create_window(300, 300, "Hello this is window", glfw::WindowMode::Windowed)
-            .expect("Failed to create GLFW window.");
-
+            .expect("Failed to create GLFW window.");//TODO WRAP
 
         /// This method is called once during initialization, then again whenever the window is resized
         fn window_size_dependent_setup(
             images: &[Arc<SwapchainImage<()>>],
             render_pass: Arc<dyn RenderPassAbstract + Send + Sync>,
-            dynamic_state: &mut DynamicState
+            dynamic_state: &mut DynamicState,
         ) -> Vec<Arc<dyn FramebufferAbstract + Send + Sync>> {
             let dimensions = images[0].dimensions();
 
             let viewport = Viewport {
                 origin: [0.0, 0.0],
                 dimensions: [dimensions[0] as f32, dimensions[1] as f32],
-                depth_range: 0.0 .. 1.0,
+                depth_range: 0.0..1.0,
             };
-            dynamic_state.viewports = Some(vec!(viewport));
+            dynamic_state.viewports = Some(vec![viewport]);
 
-            images.iter().map(|image| {
-                Arc::new(
-                    Framebuffer::start(render_pass.clone())
-                        .add(image.clone()).unwrap()
-                        .build().unwrap()
-                ) as Arc<dyn FramebufferAbstract + Send + Sync>
-            }).collect::<Vec<_>>()
+            images
+                .iter()
+                .map(|image| {
+                    Arc::new(
+                        Framebuffer::start(render_pass.clone())
+                            .add(image.clone())
+                            .unwrap()
+                            .build()
+                            .unwrap(),
+                    ) as Arc<dyn FramebufferAbstract + Send + Sync>
+                })
+                .collect::<Vec<_>>()
         }
 
         // The first step of any Vulkan program is to create an instance.
@@ -79,9 +86,13 @@ mod tests {
         //
         // For the sake of the example we are just going to use the first device, which should work
         // most of the time.
-        let physical = PhysicalDevice::enumerate(&instance).map(|x| {println!("{}",x.name());
-                                                                     x
-        }).next().unwrap();
+        let physical = PhysicalDevice::enumerate(&instance)
+            .map(|x| {
+                println!("{}", x.name());
+                x
+            })
+            .next()
+            .unwrap();
 
         // Some little debug infos.
         println!(
@@ -102,10 +113,14 @@ mod tests {
         // window and a cross-platform Vulkan surface that represents the surface of the window.
         let mut vksurf: vk_sys::SurfaceKHR = 0;
 
-        assert_eq!(window.create_window_surface(cv.instance,std::ptr::null(),&mut vksurf),vk_sys::SUCCESS);
+        assert_eq!(
+            window.create_window_surface(cv.instance, std::ptr::null(), &mut vksurf),
+            vk_sys::SUCCESS
+        );
 
-        let surface =
-            Arc::new(unsafe{vulkano::swapchain::Surface::<()>::from_raw_surface(instance.clone(), vksurf, ())});
+        let surface = Arc::new(unsafe {
+            vulkano::swapchain::Surface::<()>::from_raw_surface(instance.clone(), vksurf, ())
+        });//TODO wrap this in a safe function
 
         // The next step is to choose which GPU queue will execute our draw commands.
         //
@@ -383,78 +398,76 @@ mod tests {
 
         while !window.should_close() {
             glfw.poll_events();
-                    // It is important to call this function from time to time, otherwise resources will keep
-                    // accumulating and you will eventually reach an out of memory error.
-                    // Calling this function polls various fences in order to determine what the GPU has
-                    // already processed, and frees the resources that are no longer needed.
-                    previous_frame_end.as_mut().unwrap().cleanup_finished();
+            // It is important to call this function from time to time, otherwise resources will keep
+            // accumulating and you will eventually reach an out of memory error.
+            // Calling this function polls various fences in order to determine what the GPU has
+            // already processed, and frees the resources that are no longer needed.
+            previous_frame_end.as_mut().unwrap().cleanup_finished();
 
-                    // Whenever the window resizes we need to recreate everything dependent on the window size.
-                    // In this example that includes the swapchain, the framebuffers and the dynamic state viewport.
-                    if recreate_swapchain {
-                        // Get the new dimensions of the window.
-                        let dimensions: [u32; 2] = [window.get_size().0 as u32, window.get_size().1 as u32];
-                        
-                        let (new_swapchain, new_images) =
-                            match swapchain.recreate_with_dimensions(dimensions) {
-                                Ok(r) => r,
-                                // This error tends to happen when the user is manually resizing the window.
-                                // Simply restarting the loop is the easiest way to fix this issue.
-                                Err(SwapchainCreationError::UnsupportedDimensions) => continue,
-                                Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
-                            };
+            // Whenever the window resizes we need to recreate everything dependent on the window size.
+            // In this example that includes the swapchain, the framebuffers and the dynamic state viewport.
+            if recreate_swapchain {
+                // Get the new dimensions of the window.
+                let dimensions: [u32; 2] = [window.get_size().0 as u32, window.get_size().1 as u32];
 
-                        swapchain = new_swapchain;
-                        // Because framebuffers contains an Arc on the old swapchain, we need to
-                        // recreate framebuffers as well.
-                        framebuffers = window_size_dependent_setup(
-                            &new_images,
-                            render_pass.clone(),
-                            &mut dynamic_state,
-                        );
-                        recreate_swapchain = false;
-                    }
+                let (new_swapchain, new_images) =
+                    match swapchain.recreate_with_dimensions(dimensions) {
+                        Ok(r) => r,
+                        // This error tends to happen when the user is manually resizing the window.
+                        // Simply restarting the loop is the easiest way to fix this issue.
+                        Err(SwapchainCreationError::UnsupportedDimensions) => continue,
+                        Err(e) => panic!("Failed to recreate swapchain: {:?}", e),
+                    };
 
-                    // Before we can draw on the output, we have to *acquire* an image from the swapchain. If
-                    // no image is available (which happens if you submit draw commands too quickly), then the
-                    // function will block.
-                    // This operation returns the index of the image that we are allowed to draw upon.
-                    //
-                    // This function can block if no image is available. The parameter is an optional timeout
-                    // after which the function call will return an error.
-                    let (image_num, suboptimal, acquire_future) =
-                        match swapchain::acquire_next_image(swapchain.clone(), None) {
-                            Ok(r) => r,
-                            Err(AcquireError::OutOfDate) => {
-                                recreate_swapchain = true;
-                                continue;
-                            }
-                            Err(e) => panic!("Failed to acquire next image: {:?}", e),
-                        };
+                swapchain = new_swapchain;
+                // Because framebuffers contains an Arc on the old swapchain, we need to
+                // recreate framebuffers as well.
+                framebuffers = window_size_dependent_setup(
+                    &new_images,
+                    render_pass.clone(),
+                    &mut dynamic_state,
+                );
+                recreate_swapchain = false;
+            }
 
-                    // acquire_next_image can be successful, but suboptimal. This means that the swapchain image
-                    // will still work, but it may not display correctly. With some drivers this can be when
-                    // the window resizes, but it may not cause the swapchain to become out of date.
-                    if suboptimal {
+            // Before we can draw on the output, we have to *acquire* an image from the swapchain. If
+            // no image is available (which happens if you submit draw commands too quickly), then the
+            // function will block.
+            // This operation returns the index of the image that we are allowed to draw upon.
+            //
+            // This function can block if no image is available. The parameter is an optional timeout
+            // after which the function call will return an error.
+            let (image_num, suboptimal, acquire_future) =
+                match swapchain::acquire_next_image(swapchain.clone(), None) {
+                    Ok(r) => r,
+                    Err(AcquireError::OutOfDate) => {
                         recreate_swapchain = true;
+                        continue;
                     }
+                    Err(e) => panic!("Failed to acquire next image: {:?}", e),
+                };
 
-                    // Specify the color to clear the framebuffer with i.e. blue
-                    let clear_values = vec![[0.0, 0.0, 1.0, 1.0].into()];
+            // acquire_next_image can be successful, but suboptimal. This means that the swapchain image
+            // will still work, but it may not display correctly. With some drivers this can be when
+            // the window resizes, but it may not cause the swapchain to become out of date.
+            if suboptimal {
+                recreate_swapchain = true;
+            }
 
-                    // In order to draw, we have to build a *command buffer*. The command buffer object holds
-                    // the list of commands that are going to be executed.
-                    //
-                    // Building a command buffer is an expensive operation (usually a few hundred
-                    // microseconds), but it is known to be a hot path in the driver and is expected to be
-                    // optimized.
-                    //
-                    // Note that we have to pass a queue family when we create the command buffer. The command
-                    // buffer will only be executable on that given queue family.
-                    let command_buffer = AutoCommandBufferBuilder::primary_one_time_submit(
-                        device.clone(),
-                        queue.family(),
-                    )
+            // Specify the color to clear the framebuffer with i.e. blue
+            let clear_values = vec![[0.0, 0.0, 1.0, 1.0].into()];
+
+            // In order to draw, we have to build a *command buffer*. The command buffer object holds
+            // the list of commands that are going to be executed.
+            //
+            // Building a command buffer is an expensive operation (usually a few hundred
+            // microseconds), but it is known to be a hot path in the driver and is expected to be
+            // optimized.
+            //
+            // Note that we have to pass a queue family when we create the command buffer. The command
+            // buffer will only be executable on that given queue family.
+            let command_buffer =
+                AutoCommandBufferBuilder::primary_one_time_submit(device.clone(), queue.family())
                     .unwrap()
                     // Before we can draw, we have to *enter a render pass*. There are two methods to do
                     // this: `draw_inline` and `draw_secondary`. The latter is a bit more advanced and is
@@ -486,38 +499,60 @@ mod tests {
                     .build()
                     .unwrap();
 
-                    let future = previous_frame_end
-                        .take()
-                        .unwrap()
-                        .join(acquire_future)
-                        .then_execute(queue.clone(), command_buffer)
-                        .unwrap()
-                        // The color output is now expected to contain our triangle. But in order to show it on
-                        // the screen, we have to *present* the image by calling `present`.
-                        //
-                        // This function does not actually present the image immediately. Instead it submits a
-                        // present command at the end of the queue. This means that it will only be presented once
-                        // the GPU has finished executing the command buffer that draws the triangle.
-                        .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
-                        .then_signal_fence_and_flush();
+            let future = previous_frame_end
+                .take()
+                .unwrap()
+                .join(acquire_future)
+                .then_execute(queue.clone(), command_buffer)
+                .unwrap()
+                // The color output is now expected to contain our triangle. But in order to show it on
+                // the screen, we have to *present* the image by calling `present`.
+                //
+                // This function does not actually present the image immediately. Instead it submits a
+                // present command at the end of the queue. This means that it will only be presented once
+                // the GPU has finished executing the command buffer that draws the triangle.
+                .then_swapchain_present(queue.clone(), swapchain.clone(), image_num)
+                .then_signal_fence_and_flush();
 
-                    match future {
-                        Ok(future) => {
-                            previous_frame_end = Some(Box::new(future) as Box<_>);
-                        }
-                        Err(FlushError::OutOfDate) => {
-                            recreate_swapchain = true;
-                            previous_frame_end =
-                                Some(Box::new(sync::now(device.clone())) as Box<_>);
-                        }
-                        Err(e) => {
-                            println!("Failed to flush future: {:?}", e);
-                            previous_frame_end =
-                                Some(Box::new(sync::now(device.clone())) as Box<_>);
-                        }
-                    }
-                
+            match future {
+                Ok(future) => {
+                    previous_frame_end = Some(Box::new(future) as Box<_>);
+                }
+                Err(FlushError::OutOfDate) => {
+                    recreate_swapchain = true;
+                    previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<_>);
+                }
+                Err(e) => {
+                    println!("Failed to flush future: {:?}", e);
+                    previous_frame_end = Some(Box::new(sync::now(device.clone())) as Box<_>);
+                }
             }
+        }
+    }
+}
+
+pub use vk_sys;
+pub use glfw; //TODO remove
+
+use glfw::Glfw;
+use std::sync::{Arc, Mutex, MutexGuard};
+
+#[macro_use]
+extern crate lazy_static;
+lazy_static! {
+    static ref GLFW: Arc<Mutex<Option<Glfw>>> = Arc::new(Mutex::new(None));
+}
+
+fn init_glfw() -> Glfw {
+    let mut lock: MutexGuard<Option<Glfw>> = GLFW.lock().unwrap();
+
+    if lock.is_some() {
+        return lock.as_ref().unwrap().clone();
+    } else {
+        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
+        assert!(glfw.vulkan_supported());
+        *lock = Some(glfw.clone());
+        glfw
     }
 }
 
@@ -536,12 +571,10 @@ impl Window {
     }
 }
 
-use glfw::Glfw;
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
 use std::ptr;
-use std::sync::Arc;
 use vk_sys::{
     self as vk, EntryPoints, Instance as VkInstance, InstanceCreateInfo, InstancePointers,
     Result as VkResult,
@@ -556,8 +589,7 @@ pub struct CrossVulkan {
 
 #[cfg(not(feature = "vulkano-support"))]
 pub fn init() -> CrossVulkan {
-    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-    assert!(glfw.vulkan_supported());
+    let mut glfw: glfw::Glfw = init_glfw ();
 
     glfw.set_error_callback(glfw::LOG_ERRORS);
 
@@ -644,7 +676,7 @@ unsafe fn destroy_instance(instance: VkInstance, instance_ptrs: &mut InstancePoi
 #[cfg(feature = "vulkano-support")]
 pub struct CrossVulkan {
     pub instance: VkInstance,
-    glfw: Glfw,
+    pub glfw: Glfw, //TODO This will eventually be private
     pub vulkano_instance: Arc<vulkano::instance::Instance>,
 }
 
@@ -696,8 +728,7 @@ pub fn init() -> CrossVulkan {
     use vulkano::instance::{Instance, RawInstanceExtensions};
     use vulkano::VulkanObject;
 
-    let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS).unwrap();
-    assert!(glfw.vulkan_supported());
+    let mut glfw: glfw::Glfw = init_glfw();
 
     glfw.set_error_callback(glfw::LOG_ERRORS);
 
@@ -730,5 +761,5 @@ pub fn init() -> CrossVulkan {
     cv
 }
 
-#[cfg(not(feature = "vulkano-support"))]
+#[cfg(feature = "vulkano-support")]
 pub fn deinit(mut cv: CrossVulkan) {}
