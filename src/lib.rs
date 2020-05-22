@@ -30,7 +30,7 @@ mod tests {
         glfw.window_hint(WindowHint::ClientApi(ClientApiHint::NoApi));
         let (mut window, events) = glfw
             .create_window(300, 300, "Hello this is window", glfw::WindowMode::Windowed)
-            .expect("Failed to create GLFW window.");//TODO WRAP
+            .expect("Failed to create GLFW window."); //TODO WRAP
 
         /// This method is called once during initialization, then again whenever the window is resized
         fn window_size_dependent_setup(
@@ -120,7 +120,7 @@ mod tests {
 
         let surface = Arc::new(unsafe {
             vulkano::swapchain::Surface::<()>::from_raw_surface(instance.clone(), vksurf, ())
-        });//TODO wrap this in a safe function
+        }); //TODO wrap this in a safe function
 
         // The next step is to choose which GPU queue will execute our draw commands.
         //
@@ -531,8 +531,8 @@ mod tests {
     }
 }
 
-pub use vk_sys;
-pub use glfw; //TODO remove
+pub use glfw;
+pub use vk_sys; //TODO remove
 
 use glfw::Glfw;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -556,21 +556,6 @@ fn init_glfw() -> Glfw {
     }
 }
 
-pub struct Window {}
-
-use glfw::{ClientApiHint, WindowHint};
-
-impl Window {
-    pub fn new(cv: &mut CrossVulkan) {
-        cv.glfw
-            .window_hint(WindowHint::ClientApi(ClientApiHint::NoApi));
-        let (mut window, events) = cv
-            .glfw
-            .create_window(300, 300, "Hello this is window", glfw::WindowMode::Windowed)
-            .expect("Failed to create GLFW window.");
-    }
-}
-
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
@@ -589,7 +574,7 @@ pub struct CrossVulkan {
 
 #[cfg(not(feature = "vulkano-support"))]
 pub fn init() -> CrossVulkan {
-    let mut glfw: glfw::Glfw = init_glfw ();
+    let mut glfw: glfw::Glfw = init_glfw();
 
     glfw.set_error_callback(glfw::LOG_ERRORS);
 
@@ -763,3 +748,47 @@ pub fn init() -> CrossVulkan {
 
 #[cfg(feature = "vulkano-support")]
 pub fn deinit(mut cv: CrossVulkan) {}
+
+use glfw::Window;
+use glfw::{ClientApiHint, WindowHint};
+
+pub struct CrossWindow {
+    pub window: Window,
+    last_cursor: (f64, f64),
+    cursor: (f64, f64),
+}
+
+use cgmath::Vector2;
+
+impl CrossWindow {
+    pub fn new_windowed(width: u32, height: u32, cv: &mut CrossVulkan) -> Self {
+        cv.glfw
+            .window_hint(WindowHint::ClientApi(ClientApiHint::NoApi));
+        let (mut window, events) = cv
+            .glfw
+            .create_window(512, 512, "Hello this is window", glfw::WindowMode::Windowed)
+            .expect("Failed to create GLFW window.");
+
+        CrossWindow {
+            window,
+            last_cursor: (0.0, 0.0),
+            cursor: (0.0, 0.0),
+        }
+    }
+
+    pub fn poll(&mut self) {
+        self.window.glfw.poll_events();
+        self.last_cursor = self.cursor;
+        self.cursor = self.window.get_cursor_pos();
+    }
+
+    pub fn get_mouse_delta(&self) -> cgmath::Vector2<f64> {
+        Vector2 {
+            x: self.cursor.0,
+            y: self.cursor.1,
+        } - Vector2 {
+            x: self.last_cursor.0,
+            y: self.last_cursor.1,
+        }
+    }
+}
